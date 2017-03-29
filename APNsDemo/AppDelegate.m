@@ -7,8 +7,12 @@
 //
 
 #import "AppDelegate.h"
+#import <UserNotifications/UserNotifications.h>
 
-@interface AppDelegate ()
+#define IOS_VERSION ([[UIDevice currentDevice].systemVersion doubleValue])
+#define IOS_VERSIONIsIOS10 (IOS_VERSION>=10.0f)
+
+@interface AppDelegate () <UNUserNotificationCenterDelegate>
 
 @end
 
@@ -17,34 +21,79 @@
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
+    
+    // 在iOS8之前注册远程通知的方法，如果项目要支持iOS8以前的版本，必须要写此方法
+//    UIRemoteNotificationType types = UIRemoteNotificationTypeBadge | UIRemoteNotificationTypeSound | UIRemoteNotificationTypeAlert;
+//    
+//    [[UIApplication sharedApplication] registerForRemoteNotificationTypes:types];
+//    
+    
+    
+    //iOS10 注册APNS
+    if (IOS_VERSIONIsIOS10)
+    {
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        center.delegate = self;
+        [center requestAuthorizationWithOptions:(UNAuthorizationOptionSound | UNAuthorizationOptionAlert | UNAuthorizationOptionBadge) completionHandler:^(BOOL granted, NSError * _Nullable error)
+         {
+             if( !error )
+             {
+                 [[UIApplication sharedApplication] registerForRemoteNotifications];  // required to get the app to do anything at all about push notifications
+                 NSLog( @"Push registration success." );
+             }
+             else
+             {
+                 NSLog( @"Push registration FAILED" );
+                 NSLog( @"ERROR: %@ - %@", error.localizedFailureReason, error.localizedDescription );
+                 NSLog( @"SUGGESTIONS: %@ - %@", error.localizedRecoveryOptions, error.localizedRecoverySuggestion );
+             }
+         }];
+    }
+    else
+    {
+        //iOS8 注册APNS
+        [[UIApplication sharedApplication] registerForRemoteNotifications];
+        UIUserNotificationType notificationTypes = UIUserNotificationTypeBadge |
+        UIUserNotificationTypeSound |
+        UIUserNotificationTypeAlert;
+        UIUserNotificationSettings *settings = [UIUserNotificationSettings settingsForTypes:notificationTypes categories:nil];
+        [[UIApplication sharedApplication] registerUserNotificationSettings:settings];
+    }
+    
+    //  userInfo为收到远程通知的内容
+//    NSDictionary *userInfo = launchOptions[UIApplicationLaunchOptionsRemoteNotificationKey];
+//    if (userInfo) {
+//        // 有推送的消息，处理推送的消息
+//        NSLog(@"%@", userInfo);
+//    }
+    
     return YES;
 }
 
-
-- (void)applicationWillResignActive:(UIApplication *)application {
-    // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
-    // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
+// 注册成功回调方法，其中deviceToken即为APNs返回的token
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
+    [self sendProviderDeviceToken:deviceToken]; // 将此deviceToken发送给Provider
 }
 
-
-- (void)applicationDidEnterBackground:(UIApplication *)application {
-    // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
-    // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
+// 注册失败回调方法，处理失败情况
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
+    NSLog(@"error:%@", error);
 }
 
-
-- (void)applicationWillEnterForeground:(UIApplication *)application {
-    // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
+- (void)sendProviderDeviceToken:(NSData *)deviceToken {
+    NSLog(@"deviceToken:%s", deviceToken.bytes);
 }
 
-
-- (void)applicationDidBecomeActive:(UIApplication *)application {
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-}
-
-
-- (void)applicationWillTerminate:(UIApplication *)application {
-    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo
+fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandler {
+    
+    // 在此方法中一定要调用completionHandler这个回调，告诉系统是否处理成功
+    NSLog(@"1111%@", userInfo);
+    if (userInfo) {
+        completionHandler(UIBackgroundFetchResultNewData);
+    } else {
+        completionHandler(UIBackgroundFetchResultNoData);
+    }
 }
 
 
